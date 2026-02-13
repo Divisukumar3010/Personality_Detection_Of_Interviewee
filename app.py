@@ -1,36 +1,8 @@
 import streamlit as st
-import pandas as pd
 import numpy as np
-import pickle
 import re
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, classification_report
-import nltk
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
-from nltk.stem import WordNetLemmatizer
 import plotly.graph_objects as go
-import plotly.express as px
-from datetime import datetime
-import os
-
-# Download required NLTK data
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt')
-
-try:
-    nltk.data.find('corpora/stopwords')
-except LookupError:
-    nltk.download('stopwords')
-
-try:
-    nltk.data.find('corpora/wordnet')
-except LookupError:
-    nltk.download('wordnet')
+import json
 
 # Page configuration
 st.set_page_config(
@@ -39,121 +11,296 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
-# st.markdown("<style>h2,h3,h4{color:#000!important}</style>", unsafe_allow_html=True)
-# Custom CSS for styling
+
+# ─── Modern CSS ───────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    .stApp { background-color: #F7F9FC; }
-    .stAlert div[role="alert"] { color: #111827 !important; }
-    .main-header {
-        text-align: center;
-        padding: 2rem 0;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-radius: 15px;
-        margin-bottom: 2rem;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-    }
-    
-    .question-card {
-        background: white;
-        padding: 2rem;
-        border-radius: 15px;
-        box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-        margin: 1rem 0;
-        border-left: 5px solid #667eea;
-    }
-    
-    .result-card {
-        background: white;
-        padding: 2rem;
-        border-radius: 15px;
-        box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-        margin: 1rem 0;
-    }
-    
-    .trait-pill {
-        display: inline-block;
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 25px;
-        margin: 0.25rem;
-        font-size: 0.9rem;
-        font-weight: 500;
-    }
-    
-    .footer {
-        text-align: center;
-        padding: 2rem;
-        background: linear-gradient(135deg, #2c3e50, #3498db);
-        color: white;
-        border-radius: 15px;
-        margin-top: 3rem;
-    }
-    
-    .progress-container {
-        background: #f0f2f6;
-        border-radius: 10px;
-        padding: 0.5rem;
-        margin: 1rem 0;
-    }
-    
-    .stButton > button {
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
-        border: none;
-        border-radius: 25px;
-        padding: 0.75rem 2rem;
-        font-weight: 600;
-        transition: all 0.3s ease;
-    }
-    
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-    }
-    .stTextArea textarea{
-        background-color:#F7F7F7 !important;
-        color:#111827 !important;
-        border:1px solid #E5E7EB !important;
-        font-size:16px !important;
-        line-height:1.6 !important;
-    }
-    .stTextArea textarea::placeholder{
-        color:#9CA3AF !important;
-    }
-    .pill-wrap {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin: 0;
-        padding: 0;
-    }
-    .pill {
-        display: inline-block;
-        padding: 10px 16px;
-        border-radius: 9999px;
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        color: #FFFFFF;
-        font-weight: 700;
-        font-size: 15px;
-        line-height: 1;
-        letter-spacing: 0.2px;
-        box-shadow: 0 6px 16px rgba(106, 111, 245, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.25);
-        white-space: nowrap;
-    }
-    .stTextArea textarea {
-        color: #111 !important;
-        caret-color: #111 !important;
-    }
-    .stTextArea textarea:focus {
-        outline: 2px solid #4a90e2 !important;
-        outline-offset: 1px;
-    }
-    .stTextArea, .stTextArea textarea {
-        opacity: 1 !important;
-    }
+/* ── Import Google Fonts ─────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+/* ── Root variables ──────────────────────────────────────── */
+:root {
+    --primary: #6C63FF;
+    --primary-dark: #5A52D5;
+    --secondary: #FF6584;
+    --accent: #43E97B;
+    --bg: #0F1117;
+    --bg-card: #181B2A;
+    --bg-card-hover: #1E2235;
+    --bg-glass: rgba(24, 27, 42, 0.7);
+    --text: #E8E8ED;
+    --text-muted: #9BA1B7;
+    --text-dim: #636A82;
+    --border: rgba(108, 99, 255, 0.15);
+    --shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    --shadow-glow: 0 0 40px rgba(108, 99, 255, 0.15);
+    --radius: 16px;
+    --radius-sm: 10px;
+    --radius-pill: 50px;
+}
+
+/* ── Global ──────────────────────────────────────────────── */
+.stApp {
+    background: var(--bg) !important;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+
+html, body, [class*="css"] {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    color: var(--text) !important;
+}
+
+/* Hide Streamlit defaults */
+#MainMenu, footer, header { visibility: hidden; }
+.block-container { padding-top: 2rem !important; max-width: 1200px !important; }
+
+/* ── Alerts ──────────────────────────────────────────────── */
+.stAlert div[role="alert"] { color: #fbbf24 !important; background: rgba(251,191,36,0.08) !important;
+    border: 1px solid rgba(251,191,36,0.2) !important; border-radius: var(--radius-sm) !important;}
+
+/* ── Hero Section ────────────────────────────────────────── */
+.hero {
+    position: relative;
+    text-align: center;
+    padding: 4rem 2rem 3.5rem;
+    border-radius: 24px;
+    margin-bottom: 2.5rem;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    overflow: hidden;
+    border: 1px solid rgba(108, 99, 255, 0.2);
+    box-shadow: var(--shadow-glow);
+}
+.hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 30% 50%, rgba(108,99,255,0.15) 0%, transparent 60%),
+                radial-gradient(circle at 70% 80%, rgba(255,101,132,0.1) 0%, transparent 50%);
+    pointer-events: none;
+}
+.hero h1 {
+    font-family: 'Space Grotesk', sans-serif !important;
+    font-size: 3rem; font-weight: 800; margin: 0 0 0.6rem;
+    background: linear-gradient(135deg, #fff 0%, #c4b5fd 50%, #6C63FF 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    letter-spacing: -0.02em; position: relative;
+}
+.hero .subtitle {
+    font-size: 1.15rem; color: var(--text-muted); max-width: 560px;
+    margin: 0 auto; line-height: 1.7; position: relative; font-weight: 400;
+}
+.hero .badge {
+    display: inline-block; padding: 6px 16px; border-radius: var(--radius-pill);
+    background: rgba(108,99,255,0.15); color: var(--primary); font-size: 0.8rem;
+    font-weight: 600; margin-bottom: 1.2rem; border: 1px solid rgba(108,99,255,0.25);
+    letter-spacing: 0.08em; text-transform: uppercase; position: relative;
+}
+
+/* ── Glass Card ──────────────────────────────────────────── */
+.glass-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 1.8rem;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    margin-bottom: 1rem;
+}
+.glass-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow), var(--shadow-glow);
+}
+.glass-card h4 {
+    font-family: 'Space Grotesk', sans-serif !important;
+    color: var(--primary) !important; font-size: 1.1rem; font-weight: 600;
+    margin-bottom: 0.8rem; display: flex; align-items: center; gap: 8px;
+}
+.glass-card p { color: var(--text-muted); line-height: 1.65; font-size: 0.95rem; }
+
+/* ── Feature Row ─────────────────────────────────────────── */
+.feature-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem;
+    margin: 2rem 0;
+}
+.feature-item {
+    text-align: center; padding: 2rem 1.4rem; border-radius: var(--radius);
+    background: var(--bg-card); border: 1px solid var(--border);
+    transition: all 0.3s ease;
+}
+.feature-item:hover { border-color: var(--primary); transform: translateY(-2px); }
+.feature-icon {
+    width: 56px; height: 56px; border-radius: 14px; display: inline-flex;
+    align-items: center; justify-content: center; font-size: 1.6rem; margin-bottom: 1rem;
+}
+.feature-icon.purple { background: rgba(108,99,255,0.12); }
+.feature-icon.pink   { background: rgba(255,101,132,0.12); }
+.feature-icon.green  { background: rgba(67,233,123,0.12); }
+.feature-item h5 {
+    color: var(--text) !important; font-weight: 600; margin: 0 0 0.4rem; font-size: 1rem;
+}
+.feature-item p { color: var(--text-muted); font-size: 0.88rem; margin: 0; line-height: 1.55; }
+
+/* ── Question Card ───────────────────────────────────────── */
+.q-card {
+    background: var(--bg-card); border-radius: var(--radius);
+    padding: 2rem 2.2rem; border: 1px solid var(--border);
+    border-left: 4px solid var(--primary); box-shadow: var(--shadow);
+    margin: 1.5rem 0;
+}
+.q-number {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; border-radius: 10px;
+    background: rgba(108,99,255,0.12); color: var(--primary);
+    font-weight: 700; font-size: 0.95rem; margin-bottom: 0.8rem;
+}
+.q-text {
+    font-size: 1.15rem; color: var(--text); line-height: 1.65; font-weight: 500;
+}
+
+/* ── Progress Bar ────────────────────────────────────────── */
+.progress-track {
+    background: rgba(108,99,255,0.08); border-radius: 12px; height: 8px;
+    margin: 1rem 0 0.4rem; overflow: hidden;
+}
+.progress-fill {
+    height: 100%; border-radius: 12px;
+    background: linear-gradient(90deg, var(--primary), var(--secondary));
+    transition: width 0.5s ease;
+}
+.progress-label {
+    text-align: center; color: var(--text-dim); font-size: 0.82rem; font-weight: 500;
+}
+/* Step dots */
+.step-dots {
+    display: flex; justify-content: center; gap: 6px; margin: 0.8rem 0;
+}
+.step-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(108,99,255,0.15); transition: all 0.3s ease;
+}
+.step-dot.done { background: var(--primary); }
+.step-dot.active { background: var(--primary); width: 24px; border-radius: 4px; }
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.stButton > button {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark)) !important;
+    color: white !important; border: none !important;
+    border-radius: var(--radius-pill) !important;
+    padding: 0.8rem 2.2rem !important; font-weight: 600 !important;
+    font-size: 0.95rem !important; letter-spacing: 0.02em;
+    transition: all 0.3s ease !important; box-shadow: 0 4px 16px rgba(108,99,255,0.3) !important;
+}
+.stButton > button:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 24px rgba(108,99,255,0.45) !important;
+}
+.stButton > button:active { transform: translateY(0) !important; }
+
+/* ── Text Area ───────────────────────────────────────────── */
+.stTextArea textarea {
+    background: var(--bg-card) !important; color: var(--text) !important;
+    border: 1px solid var(--border) !important; border-radius: var(--radius-sm) !important;
+    font-size: 1rem !important; line-height: 1.7 !important;
+    caret-color: var(--primary) !important; padding: 1rem !important;
+    transition: border-color 0.3s ease !important;
+    font-family: 'Inter', sans-serif !important;
+}
+.stTextArea textarea::placeholder { color: var(--text-dim) !important; }
+.stTextArea textarea:focus {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 3px rgba(108,99,255,0.1) !important;
+    outline: none !important;
+}
+.stTextArea, .stTextArea textarea { opacity: 1 !important; }
+.stTextArea label { color: var(--text) !important; font-weight: 500 !important; }
+
+/* ── Result Type Badge ───────────────────────────────────── */
+.type-badge {
+    display: inline-block; padding: 10px 22px; border-radius: var(--radius-pill);
+    background: linear-gradient(135deg, var(--primary), #8B5CF6);
+    color: #fff; font-weight: 700; font-size: 1.4rem;
+    letter-spacing: 0.1em; box-shadow: 0 6px 20px rgba(108,99,255,0.35);
+    margin-bottom: 0.8rem;
+}
+.type-title {
+    font-family: 'Space Grotesk', sans-serif !important;
+    font-size: 1.6rem; font-weight: 700; color: var(--text) !important;
+    margin: 0.4rem 0 0.8rem;
+}
+.type-desc { color: var(--text-muted); font-size: 1rem; line-height: 1.7; }
+
+/* ── Trait / Pill Tags ───────────────────────────────────── */
+.pill-wrap { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 0.6rem; }
+.pill {
+    display: inline-block; padding: 7px 16px; border-radius: var(--radius-pill);
+    font-weight: 600; font-size: 0.85rem; line-height: 1;
+    letter-spacing: 0.02em; white-space: nowrap; transition: transform 0.2s ease;
+}
+.pill:hover { transform: scale(1.04); }
+.pill.purple {
+    background: rgba(108,99,255,0.12); color: #A78BFA;
+    border: 1px solid rgba(108,99,255,0.2);
+}
+.pill.pink {
+    background: rgba(255,101,132,0.1); color: #FF6584;
+    border: 1px solid rgba(255,101,132,0.18);
+}
+.pill.green {
+    background: rgba(67,233,123,0.1); color: #43E97B;
+    border: 1px solid rgba(67,233,123,0.18);
+}
+.pill.amber {
+    background: rgba(251,191,36,0.1); color: #fbbf24;
+    border: 1px solid rgba(251,191,36,0.18);
+}
+.pill.blue {
+    background: rgba(59,130,246,0.1); color: #60a5fa;
+    border: 1px solid rgba(59,130,246,0.18);
+}
+
+/* ── Dimension Bar ───────────────────────────────────────── */
+.dim-row { margin-bottom: 1.6rem; }
+.dim-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+.dim-label { font-weight: 500; color: var(--text); font-size: 0.95rem; }
+.dim-value { font-weight: 700; color: var(--primary); font-size: 0.95rem; }
+.dim-track { background: rgba(108,99,255,0.08); border-radius: 8px; height: 8px; }
+.dim-fill {
+    height: 100%; border-radius: 8px;
+    background: linear-gradient(90deg, var(--primary), #8B5CF6);
+    transition: width 0.6s ease;
+}
+.dim-pref { color: var(--text-dim); font-size: 0.82rem; margin-top: 4px; }
+
+/* ── Match Row ───────────────────────────────────────────── */
+.match-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.match-row:last-child { border-bottom: none; }
+.match-type { color: var(--text-muted); font-weight: 500; font-size: 0.95rem; }
+.match-pct { color: var(--primary); font-weight: 700; font-size: 0.95rem; }
+
+/* ── Footer ──────────────────────────────────────────────── */
+.app-footer {
+    text-align: center; padding: 2rem 1.5rem; margin-top: 3.5rem;
+    border-top: 1px solid var(--border);
+}
+.app-footer p { color: var(--text-dim); font-size: 0.82rem; margin: 0.3rem 0; }
+.app-footer .heart { color: var(--secondary); }
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .hero h1 { font-size: 2rem; }
+    .feature-grid { grid-template-columns: 1fr; }
+    .block-container { padding-left: 1rem !important; padding-right: 1rem !important; }
+}
+
+/* ── Misc ────────────────────────────────────────────────── */
+.section-label {
+    font-family: 'Space Grotesk', sans-serif !important;
+    color: var(--text) !important; font-size: 1.25rem; font-weight: 700;
+    margin: 2rem 0 1rem; display: flex; align-items: center; gap: 8px;
+}
+hr { border-color: var(--border) !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -329,137 +476,309 @@ QUESTIONS = [
     "If given full freedom, how would you ideally like to work?"
 ]
 
-class NLPProcessor:
-    def __init__(self):
-        self.lemmatizer = WordNetLemmatizer()
-        self.stop_words = set(stopwords.words('english'))
-    
-    def preprocess_text(self, text):
-        """Clean and preprocess text data"""
-        # ------------------------------------Convert to lowercase------------------------------------ 
-        text = text.lower()
-        
-        #----------------------------- Remove special characters and digits---------------------------
-        text = re.sub(r'[^a-zA-Z\s]', '', text)
-        
-        # ------------------------------------------ Tokenization ------------------------------------
-        tokens = word_tokenize(text)
-        
-        # ----------------------------------- Remove stopwords and lemmatize---------------------------
-        processed_tokens = []
-        for token in tokens:
-            if token not in self.stop_words and len(token) > 2:
-                lemmatized = self.lemmatizer.lemmatize(token)
-                processed_tokens.append(lemmatized)
-        
-        return ' '.join(processed_tokens)
 
-class PersonalityModel:
-    def __init__(self):
-        self.nlp_processor = NLPProcessor()
-        self.vectorizer = TfidfVectorizer(max_features=1000, ngram_range=(1, 2))
-        self.model = LogisticRegression(random_state=42, max_iter=1000)
-        self.is_trained = False
-    
-    def create_synthetic_data(self):
-        """Create synthetic training data for demonstration"""
-        np.random.seed(42)
-        
-        # Keywords associated with each personality dimension
-        extraversion_words = ['team', 'people', 'social', 'group', 'collaborate', 'talk', 'discuss', 'share']
-        introversion_words = ['alone', 'individual', 'quiet', 'focus', 'concentrate', 'independent']
-        
-        sensing_words = ['practical', 'concrete', 'detail', 'fact', 'data', 'step', 'procedure']
-        intuition_words = ['possibility', 'idea', 'concept', 'theory', 'innovation', 'creative', 'vision']
-        
-        thinking_words = ['logic', 'analyze', 'objective', 'rational', 'efficient', 'system', 'solve']
-        feeling_words = ['feel', 'emotion', 'value', 'harmony', 'care', 'help', 'relationship']
-        
-        judging_words = ['plan', 'organize', 'schedule', 'structure', 'deadline', 'goal', 'decide']
-        perceiving_words = ['flexible', 'adapt', 'spontaneous', 'open', 'explore', 'flow', 'change']
-        
-        synthetic_data = []
-        labels = []
-        
-        for personality_type in PERSONALITY_TYPES.keys():
-            for _ in range(50):  # 50 samples per type
-                text_parts = []
-                
-                # Generate text based on personality type
-                if 'E' in personality_type:
-                    text_parts.extend(np.random.choice(extraversion_words, 3))
-                else:
-                    text_parts.extend(np.random.choice(introversion_words, 3))
-                
-                if 'S' in personality_type:
-                    text_parts.extend(np.random.choice(sensing_words, 3))
-                else:
-                    text_parts.extend(np.random.choice(intuition_words, 3))
-                
-                if 'T' in personality_type:
-                    text_parts.extend(np.random.choice(thinking_words, 3))
-                else:
-                    text_parts.extend(np.random.choice(feeling_words, 3))
-                
-                if 'J' in personality_type:
-                    text_parts.extend(np.random.choice(judging_words, 3))
-                else:
-                    text_parts.extend(np.random.choice(perceiving_words, 3))
-                
-                # Add some random words for variety
-                random_words = ['work', 'project', 'time', 'important', 'situation', 'approach', 'method']
-                text_parts.extend(np.random.choice(random_words, 5))
-                
-                synthetic_text = ' '.join(text_parts)
-                synthetic_data.append(synthetic_text)
-                labels.append(personality_type)
-        
-        return synthetic_data, labels
-    
-    # ------------------------------------ Train the personality prediction model ------------------------------------
+# ─── MBTI Dimension Scoring Engine ─────────────────────────────────────────
+# Each dimension is scored independently using extensive keyword/phrase matching.
+# This is far more accurate than the previous synthetic-data ML approach.
 
-    def train_model(self):
-        """Train the personality prediction model"""
-        # ------------------------------------ Create synthetic training data----------------------
-        texts, labels = self.create_synthetic_data()
-        
-        # ------------------------------------ Preprocess texts ------------------------------------
-        processed_texts = [self.nlp_processor.preprocess_text(text) for text in texts]
-        
-        # ------------------------------------ Vectorize------------------------------------
-        X = self.vectorizer.fit_transform(processed_texts)
-        
-        # ------------------------------------ Train model ------------------------------------
-        self.model.fit(X, labels)
-        self.is_trained = True
-        
-        return self.model
-    
-    def predict_personality(self, answers):
-        """Predict personality type from answers"""
-        if not self.is_trained:
-            self.train_model()
-        
-        # Combine all answers into one text
-        combined_text = ' '.join(answers)
-        
-        # Preprocess
-        processed_text = self.nlp_processor.preprocess_text(combined_text)
-        
-        # Vectorize
-        X = self.vectorizer.transform([processed_text])
-        
-        # Predict
-        prediction = self.model.predict(X)[0]
-        probabilities = self.model.predict_proba(X)[0]
-        confidence = max(probabilities) * 100
-        
-        # Get top matches
-        classes = self.model.classes_
-        top_indices = np.argsort(probabilities)[::-1][:3]
-        top_matches = [(classes[i], probabilities[i] * 100) for i in top_indices]
-        
-        return prediction, confidence, top_matches
+# Which MBTI dimension each question is most relevant to (0-indexed)
+# E/I = 0, S/N = 1, T/F = 2, J/P = 3
+QUESTION_DIMENSION_MAP = {
+    0: [0],       # Tell me about yourself
+    1: [3, 1],    # Prepare for task → J/P, S/N
+    2: [0],       # Alone vs team → E/I
+    3: [2, 0],    # Handle stress → T/F, E/I
+    4: [1, 2],    # Solve a problem → S/N, T/F
+    5: [2, 1],    # Logic vs intuition → T/F, S/N
+    6: [2, 0],    # Motivation → T/F, E/I
+    7: [2, 0],    # Handle conflicts → T/F, E/I
+    8: [3],       # Structured vs flexible → J/P
+    9: [3, 1],    # Unexpected challenges → J/P, S/N
+    10: [3],      # Planning vs flow → J/P
+    11: [3, 1],   # Manage time → J/P, S/N
+    12: [1],      # Facts vs possibilities → S/N
+    13: [0, 2],   # Group discussions → E/I, T/F
+    14: [1, 0],   # Learning style → S/N, E/I
+    15: [2, 0],   # Express feelings → T/F, E/I
+    16: [2, 3],   # React to feedback → T/F, J/P
+    17: [3, 1],   # Long vs short-term → J/P, S/N
+    18: [0, 2],   # Role in group → E/I, T/F
+    19: [3, 0],   # Ideal work → J/P, E/I
+}
+
+# Keyword dictionaries: (keyword/phrase, weight)
+# Higher weight = stronger indicator
+DIMENSION_KEYWORDS = {
+    # ── Extroversion vs Introversion ──────────────────────────
+    'E': [
+        # Social orientation
+        ('team', 2), ('teams', 2), ('teamwork', 2), ('collaborate', 3),
+        ('collaboration', 3), ('people', 1.5), ('social', 2), ('socialize', 2),
+        ('group', 1.5), ('groups', 1.5), ('together', 1.5), ('outgoing', 3),
+        ('extrovert', 3), ('talkative', 2), ('energetic', 1.5),
+        # Communication
+        ('discuss', 1.5), ('discussion', 1.5), ('share', 1), ('sharing', 1),
+        ('talk', 1.5), ('talking', 1.5), ('communicate', 2), ('communication', 2),
+        ('brainstorm', 2), ('brainstorming', 2), ('debate', 2),
+        # Activity
+        ('lead', 1.5), ('leader', 2), ('leadership', 2), ('engage', 1.5),
+        ('interact', 2), ('interaction', 2), ('network', 2), ('networking', 2),
+        ('meeting', 1), ('meetings', 1), ('present', 1.5), ('presentation', 1.5),
+        # Phrases
+        ('work with others', 3), ('enjoy working with', 3), ('prefer team', 3),
+        ('like being around', 3), ('with colleagues', 1.5), ('with people', 2),
+        ('bounce ideas', 2), ('think out loud', 2), ('open environment', 2),
+        ('thrive in groups', 3), ('feed off energy', 3), ('love meeting', 2),
+    ],
+    'I': [
+        # Solitude orientation
+        ('alone', 2.5), ('independent', 2), ('independently', 2), ('solo', 2.5),
+        ('solitude', 3), ('introvert', 3), ('privacy', 2), ('private', 2),
+        ('quiet', 2), ('reserved', 2), ('self', 1), ('myself', 1.5),
+        # Work style
+        ('focus', 1.5), ('focused', 1.5), ('concentrate', 2), ('concentration', 2),
+        ('deep work', 3), ('deep thinking', 3), ('reflect', 2), ('reflection', 2),
+        ('think before', 2), ('think things through', 3), ('internal', 1.5),
+        ('individual', 2), ('individually', 2), ('personal space', 2.5),
+        # Phrases
+        ('work alone', 3), ('prefer working alone', 4), ('by myself', 3),
+        ('on my own', 2.5), ('need space', 2.5), ('recharge alone', 3),
+        ('small group', 1.5), ('one on one', 2), ('written communication', 2),
+        ('rather listen', 2), ('observe first', 2), ('take time to', 1.5),
+    ],
+
+    # ── Sensing vs Intuition ──────────────────────────────────
+    'S': [
+        # Practical focus
+        ('practical', 2.5), ('realistic', 2), ('concrete', 2.5), ('specific', 1.5),
+        ('detail', 2), ('details', 2), ('detailed', 2), ('fact', 2), ('facts', 2),
+        ('data', 2), ('evidence', 2), ('proven', 2), ('experience', 1.5),
+        ('experienced', 1.5), ('hands-on', 3), ('hands on', 3), ('tangible', 2.5),
+        # Process
+        ('step by step', 3), ('step-by-step',
+                              3), ('procedure', 2), ('process', 1.5),
+        ('routine', 2), ('systematic', 2), ('methodical', 2), ('thorough', 1.5),
+        ('careful', 1.5), ('accurate', 2), ('accuracy', 2), ('precise', 2),
+        # Focus
+        ('present', 1), ('current', 1), ('actual', 1.5), ('real-world', 2.5),
+        ('real world', 2.5), ('observable', 2), ('measurable', 2.5),
+        # Phrases
+        ('based on facts', 3), ('look at details', 3), ('pay attention to', 2),
+        ('tried and tested', 3), ('what has worked', 2.5), ('proven method', 3),
+        ('follow instructions', 2), ('established process', 3), ('track record', 2),
+    ],
+    'N': [
+        # Conceptual focus
+        ('idea', 2), ('ideas', 2), ('possibility', 2.5), ('possibilities', 2.5),
+        ('concept', 2), ('conceptual', 2), ('theory', 2), ('theoretical', 2),
+        ('abstract', 2.5), ('imagine', 2), ('imagination', 2.5), ('imaginative', 2.5),
+        ('vision', 2), ('visionary', 3), ('innovative', 2.5), ('innovation', 2.5),
+        ('creative', 2), ('creativity', 2), ('intuition', 3), ('intuitive', 3),
+        # Exploration
+        ('explore', 2), ('experiment', 2), ('pattern', 2), ('patterns', 2),
+        ('big picture', 3), ('overall', 1.5), ('future', 2), ('potential', 2),
+        ('transform', 2), ('transformation', 2), ('inspiration', 2),
+        ('brainstorm', 1.5), ('novel', 2), ('unconventional', 2.5),
+        # Phrases
+        ('think outside', 3), ('outside the box', 3), ('what if', 2),
+        ('long term vision', 3), ('new approach', 2.5), ('new ways', 2),
+        ('bigger meaning', 3), ('underlying pattern', 3), ('connect the dots', 3),
+        ('see connections', 3), ('open to possibilities', 3), ('new perspective', 2.5),
+    ],
+
+    # ── Thinking vs Feeling ───────────────────────────────────
+    'T': [
+        # Logic
+        ('logic', 2.5), ('logical', 2.5), ('logically', 2.5), ('analyze', 2),
+        ('analysis', 2), ('analytical', 2.5), ('objective', 2.5), ('objectively', 2.5),
+        ('rational', 2.5), ('rationally', 2.5), ('reason', 1.5), ('reasoning', 2),
+        ('critical thinking', 3), ('critique', 2), ('evaluate', 1.5),
+        # Efficiency
+        ('efficient', 2), ('efficiency', 2), ('effective', 1.5), ('optimize', 2.5),
+        ('solve', 1.5), ('solution', 1.5), ('problem-solving', 2.5),
+        ('systematic', 2), ('strategy', 2), ('strategic', 2),
+        # Approach
+        ('fair', 1.5), ('consistent', 1.5), ('principle', 2), ('principles', 2),
+        ('framework', 2), ('criteria', 2), ('standard', 1.5), ('pros and cons', 3),
+        # Phrases
+        ('based on logic', 3), ('weigh the options', 2.5), ('think critically', 3),
+        ('cost benefit', 3), ('data driven', 3), ('make sense', 1.5),
+        ('figure out', 1.5), ('break down the problem', 3), ('root cause', 3),
+        ('separate emotion', 3), ('set aside feelings', 3),
+    ],
+    'F': [
+        # Emotion
+        ('feel', 1.5), ('feeling', 2), ('feelings', 2), ('emotion', 2),
+        ('emotional', 2), ('empathy', 3), ('empathetic', 3), ('compassion', 3),
+        ('compassionate', 3), ('care', 1.5), ('caring', 2), ('kind', 1.5),
+        ('kindness', 2), ('sensitive', 2), ('sensitivity', 2),
+        # Relationships
+        ('harmony', 3), ('value', 1.5), ('values', 2), ('relationship', 2),
+        ('relationships', 2), ('help', 1), ('helping', 1.5), ('support', 1.5),
+        ('supportive', 2), ('understand', 1), ('understanding', 1.5),
+        ('connect', 1.5), ('personal', 1), ('heart', 2),
+        # Impact
+        ('impact on people', 3), ('how others feel', 3), ('team morale', 3),
+        ('wellbeing', 2.5), ('well-being', 2.5), ('consensus', 2),
+        ('appreciation', 2), ('grateful', 1.5), ('trust', 1.5),
+        # Phrases
+        ('gut feeling', 3), ('listen to my heart', 3), ('consider others', 2.5),
+        ('people first', 3), ('human side', 3), ('mean to others', 2),
+        ('makes me feel', 2), ('passionate about', 2), ('deeply about', 2),
+    ],
+
+    # ── Judging vs Perceiving ─────────────────────────────────
+    'J': [
+        # Organization
+        ('plan', 2), ('planning', 2), ('planned', 2), ('organize', 2.5),
+        ('organized', 2.5), ('organization',
+                             2), ('schedule', 2.5), ('scheduled', 2.5),
+        ('structure', 2.5), ('structured', 2.5), ('systematic', 2), ('order', 1.5),
+        ('orderly', 2), ('tidy', 1.5), ('neat', 1.5),
+        # Goals
+        ('goal', 2), ('goals', 2), ('deadline', 2.5), ('deadlines', 2.5),
+        ('target', 1.5), ('milestone', 2), ('priority', 2), ('prioritize', 2.5),
+        ('checklist', 3), ('to-do', 2.5), ('todo', 2.5),
+        # Control
+        ('decide', 1.5), ('decision', 1.5), ('decisive', 2.5), ('commit', 2),
+        ('committed', 2), ('discipline', 2.5), ('disciplined', 2.5),
+        ('responsible', 2), ('reliable', 2), ('dependable', 2),
+        ('punctual', 2.5), ('routine', 2), ('prepared', 2), ('preparation', 2),
+        # Phrases
+        ('ahead of time', 3), ('in advance', 2.5), ('stick to the plan', 3),
+        ('set clear goals', 3), ('follow through', 2.5), ('long-term plan', 3),
+        ('like to know', 2), ('well prepared', 3), ('make a list', 2.5),
+        ('clear expectations', 3), ('step by step plan', 3),
+    ],
+    'P': [
+        # Flexibility
+        ('flexible', 2.5), ('flexibility', 2.5), ('adapt', 2), ('adaptable', 2.5),
+        ('adjust', 2), ('spontaneous', 3), ('spontaneously', 3), ('improvise', 3),
+        ('improvisation', 3), ('open', 1), ('open-minded', 2.5), ('open minded', 2.5),
+        ('casual', 1.5), ('relaxed', 2), ('easygoing', 2.5), ('easy-going', 2.5),
+        # Exploration
+        ('explore', 2), ('exploring', 2), ('flow', 2), ('go with the flow', 3),
+        ('change', 1.5), ('changing', 1.5), ('variety', 2), ('diverse', 1.5),
+        ('freedom', 2.5), ('free', 1.5), ('curious', 2), ('curiosity', 2),
+        # Approach
+        ('last minute', 2.5), ('play it by ear', 3), ('see what happens', 3),
+        ('wing it', 3), ('keep options', 3), ('keep my options', 3),
+        ('on the fly', 3), ('as it comes', 2.5), ('go along', 2),
+        # Phrases
+        ('no strict plan', 3), ('see how things go', 3),
+        ('prefer not to plan', 3), ('like surprises', 2.5),
+        ('open to change', 3), ('take things as they come', 3),
+        ('new experiences', 2), ('try different', 2), ('not tied down', 3),
+    ],
+}
+
+
+class PersonalityScorer:
+    """Rule-based MBTI personality scorer using keyword analysis."""
+
+    def __init__(self):
+        # Pre-compile lowercase keyword lists for faster matching
+        self._compiled = {}
+        for dim_key, kw_list in DIMENSION_KEYWORDS.items():
+            self._compiled[dim_key] = [(kw.lower(), w) for kw, w in kw_list]
+
+    def _score_text(self, text, dim_key):
+        """Score a text for a given dimension key (e.g. 'E', 'I')."""
+        text_lower = text.lower()
+        score = 0.0
+        for keyword, weight in self._compiled[dim_key]:
+            # Count occurrences (non-overlapping)
+            count = text_lower.count(keyword)
+            if count > 0:
+                score += weight * count
+        return score
+
+    def score_answers(self, answers):
+        """
+        Score all answers and return dimension scores + MBTI type.
+
+        Returns: (mbti_type, dimension_scores, confidence, top_matches)
+          dimension_scores = {
+              'EI': {'E': float, 'I': float, 'pct': 0-100 toward first letter},
+              'SN': {...}, 'TF': {...}, 'JP': {...}
+          }
+        """
+        # Accumulate raw scores per dimension letter
+        raw_scores = {k: 0.0 for k in 'EISNTFJP'}
+
+        for q_idx, answer in enumerate(answers):
+            if not answer or not answer.strip():
+                continue
+
+            # Get relevant dimensions for this question
+            relevant_dims = QUESTION_DIMENSION_MAP.get(q_idx, [0, 1, 2, 3])
+            # Weight boost for primary dimension
+            for rank, dim_idx in enumerate(relevant_dims):
+                boost = 1.5 if rank == 0 else 1.0  # Primary dimension gets 1.5x
+
+                dim_pairs = [('E', 'I'), ('S', 'N'), ('T', 'F'), ('J', 'P')]
+                pair = dim_pairs[dim_idx]
+
+                for letter in pair:
+                    raw_scores[letter] += self._score_text(
+                        answer, letter) * boost
+
+            # Also score all dimensions at base weight for general signal
+            for letter in 'EISNTFJP':
+                raw_scores[letter] += self._score_text(answer, letter) * 0.3
+
+        # Build dimension scores
+        dim_pairs_info = [('E', 'I', 'EI'), ('S', 'N', 'SN'),
+                          ('T', 'F', 'TF'), ('J', 'P', 'JP')]
+
+        dimension_scores = {}
+        mbti_type = ''
+
+        total_margin = 0.0
+        for first, second, key in dim_pairs_info:
+            s1 = raw_scores[first]
+            s2 = raw_scores[second]
+            total = s1 + s2
+
+            if total == 0:
+                pct = 50.0
+            else:
+                pct = (s1 / total) * 100.0
+
+            dimension_scores[key] = {
+                first: s1,
+                second: s2,
+                'pct': round(pct, 1),  # % toward first letter
+                'winner': first if s1 >= s2 else second
+            }
+
+            mbti_type += first if s1 >= s2 else second
+            margin = abs(s1 - s2) / max(total, 1)
+            total_margin += margin
+
+        # Confidence: average margin across 4 dimensions (0-1), scaled to 40-95%
+        avg_margin = total_margin / 4.0
+        confidence = min(95.0, 40.0 + avg_margin * 110)
+
+        # Generate top 3 matches by calculating "closeness" to each type
+        type_scores = {}
+        for ptype in PERSONALITY_TYPES.keys():
+            score = 0.0
+            for i, (first, second, key) in enumerate(dim_pairs_info):
+                pct = dimension_scores[key]['pct']
+                # How well does this type match the dimension score?
+                if ptype[i] == first:
+                    score += pct
+                else:
+                    score += (100 - pct)
+            type_scores[ptype] = score / 4.0  # Average percentage match
+
+        sorted_types = sorted(type_scores.items(),
+                              key=lambda x: x[1], reverse=True)
+        top_matches = [(t, s) for t, s in sorted_types[:3]]
+
+        return mbti_type, dimension_scores, confidence, top_matches
+
 
 def _level_from_score(pct: float) -> str:
     if pct >= 70:
@@ -468,22 +787,23 @@ def _level_from_score(pct: float) -> str:
         return "Medium"
     return "Low"
 
+
 def create_circular_progress(percentage, title, *,
-                            ring_color="#6D5EF3",
-                            bg_ring="#E9ECF3",
-                            center_text="#1F2937"):
+                             ring_color="#6C63FF",
+                             bg_ring="rgba(108,99,255,0.1)",
+                             center_text="#E8E8ED"):
     """Donut KPI with auto subtitle based on score."""
     pct = max(0, min(100, float(percentage)))
     subtitle_text = _level_from_score(pct)
 
     fig = go.Figure(go.Pie(
         values=[pct, 100 - pct],
-        hole=0.7,
+        hole=0.72,
         sort=False,
         direction="clockwise",
         marker=dict(
             colors=[ring_color, bg_ring],
-            line=dict(color=bg_ring, width=2)
+            line=dict(color="rgba(0,0,0,0)", width=0)
         ),
         textinfo="none",
         hoverinfo="skip",
@@ -494,376 +814,433 @@ def create_circular_progress(percentage, title, *,
             text=f"<b>{title}</b>",
             x=0.5, xanchor="center",
             y=0.96, yanchor="top",
-            font=dict(size=16, color=center_text)
+            font=dict(size=15, color=center_text, family="Inter, sans-serif")
         ),
-        height=360,
-        width=360,
-        margin=dict(t=60, b=40, l=20, r=20),
+        height=320,
+        width=320,
+        margin=dict(t=55, b=35, l=15, r=15),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)"
     )
 
-
-    # Center value
     fig.add_annotation(
         x=0.5, y=0.56,
         text=f"<b>{pct:.0f}%</b>",
         showarrow=False,
-        font=dict(size=34, color=center_text),
+        font=dict(size=36, color=center_text,
+                  family="Space Grotesk, sans-serif"),
         xref="paper", yref="paper"
     )
-    # Auto subtitle from score
     fig.add_annotation(
         x=0.5, y=0.40,
-        text=f"<span style='color:#6B7280;font-size:13px'>{subtitle_text}</span>",
+        text=f"<span style='color:#9BA1B7;font-size:13px'>{subtitle_text}</span>",
         showarrow=False,
         xref="paper", yref="paper"
     )
 
     return fig
 
+# ─── HOME PAGE ────────────────────────────────────────────────────────────────
+
+
 def show_home_page():
     """Display the home page"""
     st.markdown("""
-    <div class="main-header">
-        <h1 style="font-size: 3rem; margin-bottom: 1rem;">🧠 Personality Detection of Interviewee</h1>
-        <h3 style="font-weight: 300; margin-bottom: 2rem;">Answer 20 interview-style questions and discover your personality</h3>
+    <div class="hero">
+        <span class="badge">AI-Powered Analysis</span>
+        <h1>Personality Detection<br>of Interviewee</h1>
+        <p class="subtitle">
+            Answer 20 thoughtfully crafted interview questions and our AI will
+            reveal your MBTI personality type with detailed insights.
+        </p>
     </div>
     """, unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    
-    with col2:
+
+    # Feature cards
+    st.markdown("""
+    <div class="feature-grid">
+        <div class="feature-item">
+            <div class="feature-icon purple">📊</div>
+            <h5>NLP-Powered Analysis</h5>
+            <p>Advanced natural language processing interprets the nuance behind your words.</p>
+        </div>
+        <div class="feature-item">
+            <div class="feature-icon pink">⚡</div>
+            <h5>Instant Results</h5>
+            <p>Get your full personality profile in seconds after completing the assessment.</p>
+        </div>
+        <div class="feature-item">
+            <div class="feature-icon green">🎯</div>
+            <h5>Career Insights</h5>
+            <p>Discover career paths, strengths, and growth areas tailored to your type.</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # How it works section
+    st.markdown('<div class="section-label">How It Works</div>',
+                unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
         st.markdown("""
-        <div class="result-card" style="text-align: center;">
-            <h3 style='color:#000'>🎯 Professional Assessment</h3>
-            <p style='color:#000'>Get insights into your personality type through AI-powered analysis of your interview responses.</p>
-            <br>
-            <div style="display: flex; justify-content: space-around; margin: 2rem 0;">
-                <div>
-                    <h4 style='color:#000'>📊 Accurate Results</h4>
-                    <p style='color:#000'>Advanced NLP analysis</p>
-                </div>
-                <div>
-                    <h4 style='color:#000'>⚡ Instant Analysis</h4>
-                    <p style='color:#000'>Get results immediately</p>
-                </div>
-                <div>
-                    <h4 style='color:#000'>🎨 Beautiful Reports</h4>
-                    <p style='color:#000'>Professional visualizations</p>
-                </div>
-            </div>
+        <div class="glass-card" style="text-align:center;">
+            <div style="font-size:2rem; margin-bottom:0.6rem;">1</div>
+            <h4 style="justify-content:center;">Answer Questions</h4>
+            <p>Respond to 20 open-ended interview questions in your own words.</p>
         </div>
         """, unsafe_allow_html=True)
-        
-        if st.button("🚀 Start Personality Test", key="start_test", use_container_width=True):
+    with col2:
+        st.markdown("""
+        <div class="glass-card" style="text-align:center;">
+            <div style="font-size:2rem; margin-bottom:0.6rem;">2</div>
+            <h4 style="justify-content:center;">AI Analysis</h4>
+            <p>Our NLP engine processes your language patterns and word choices.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    with col3:
+        st.markdown("""
+        <div class="glass-card" style="text-align:center;">
+            <div style="font-size:2rem; margin-bottom:0.6rem;">3</div>
+            <h4 style="justify-content:center;">Get Your Profile</h4>
+            <p>Receive a detailed MBTI report with traits, careers, and insights.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    col_a, col_b, col_c = st.columns([1, 1, 1])
+    with col_b:
+        if st.button("Start Personality Test  →", key="start_test", use_container_width=True):
             st.session_state.page = 'questionnaire'
             st.session_state.current_question = 0
             st.session_state.answers = [''] * 20
+            st.query_params['page'] = 'questionnaire'
             st.rerun()
 
+
+# ─── QUESTIONNAIRE PAGE ──────────────────────────────────────────────────────
 def show_questionnaire_page():
     """Display the questionnaire page"""
     if 'current_question' not in st.session_state:
         st.session_state.current_question = 0
     if 'answers' not in st.session_state:
         st.session_state.answers = [''] * 20
-    
+
     current_q = st.session_state.current_question
     progress = (current_q + 1) / len(QUESTIONS) * 100
-    
-    # Header
+    answered = sum(1 for a in st.session_state.answers if a.strip())
+
+    # ── Compact Hero ──
     st.markdown(f"""
-    <div class="main-header">
-        <h2>📝 Personality Assessment</h2>
-        <p>Question {current_q + 1} of {len(QUESTIONS)}</p>
+    <div class="hero" style="padding:2.5rem 2rem 2rem;">
+        <span class="badge">Question {current_q + 1} of {len(QUESTIONS)}</span>
+        <h1 style="font-size:2rem;">Personality Assessment</h1>
+        <p class="subtitle" style="font-size:0.95rem;">
+            {answered} of {len(QUESTIONS)} answered
+        </p>
     </div>
     """, unsafe_allow_html=True)
-    
-    # Progress bar
+
+    # ── Progress bar ──
     st.markdown(f"""
-    <div class="progress-container">
-        <div style="background: linear-gradient(90deg, #667eea, #764ba2); height: 10px; border-radius: 5px; width: {progress}%;"></div>
-        <p style="text-align: center; margin-top: 0.5rem; color: #666;">{progress:.0f}% Complete</p>
+    <div class="progress-track">
+        <div class="progress-fill" style="width:{progress}%;"></div>
+    </div>
+    <div class="progress-label">{progress:.0f}% complete</div>
+    """, unsafe_allow_html=True)
+
+    # ── Step dots ──
+    dots_html = '<div class="step-dots">'
+    for i in range(len(QUESTIONS)):
+        cls = "done" if i < current_q else ("active" if i == current_q else "")
+        dots_html += f'<div class="step-dot {cls}"></div>'
+    dots_html += '</div>'
+    st.markdown(dots_html, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Question Card ──
+    st.markdown(f"""
+    <div class="q-card">
+        <div class="q-number">{current_q + 1}</div>
+        <div class="q-text">{QUESTIONS[current_q]}</div>
     </div>
     """, unsafe_allow_html=True)
-    
-    # Question card
-    st.markdown(f"""
-    <div class="question-card">
-        <h3 style='color:#000'>Question {current_q + 1}</h3>
-        <p style="font-size: 1.1rem; color: #333; margin-bottom: 1rem;">{QUESTIONS[current_q]}</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Answer input
-    # answer = st.text_area(
-    #     <p>"Your Answer:"</p>,
-    #     value=st.session_state.answers[current_q],
-    #     height=150,
-    #     placeholder="Type your answer here... Be as detailed as you'd like.",
-    #     key=f"answer_{current_q}"
-    # )
-    # --------------------------
-    st.markdown("<span style='color:#000;font-weight:600'>Your Answer:</span>", unsafe_allow_html=True)
+
+    # ── Answer Input ──
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
     answer = st.text_area(
-    "",
+        "Your Answer",
         value=st.session_state.answers[current_q],
-        height=150,
+        height=160,
         placeholder="Type your answer here... Be as detailed as you'd like.",
         key=f"answer_{current_q}",
-        label_visibility="collapsed"
     )
-    
-    # Update answer in session state
+
     st.session_state.answers[current_q] = answer
-    
-    # Navigation buttons
+
+    # ── Character counter ──
+    char_count = len(answer.strip())
+    is_valid = char_count >= 10
+    color = "#43E97B" if is_valid else "#FF6584" if char_count > 0 else "var(--text-dim)"
+    hint = "✓" if is_valid else "(min 10 — press Ctrl+Enter to apply)"
+    st.markdown(f"""
+    <div style="text-align:right; font-size:0.8rem; color:{color}; margin-top:-8px;">
+        {char_count} characters {hint}
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Navigation ──
     col1, col2, col3 = st.columns([1, 2, 1])
-    
+
     with col1:
         if current_q > 0:
-            if st.button("⬅️ Previous", key="prev_btn"):
+            if st.button("← Previous", key="prev_btn"):
                 st.session_state.current_question -= 1
                 st.rerun()
         else:
-            if st.button("🏠 Back to Home", key="home_btn"):
+            if st.button("← Home", key="home_btn"):
                 st.session_state.page = 'home'
+                st.query_params.clear()
                 st.rerun()
-    
-    with col3:
-        if len(answer.strip()) >= 10:  # Minimum answer length
-            if current_q < len(QUESTIONS) - 1:
-                if st.button("Next ➡️", key="next_btn"):
-                    st.session_state.current_question += 1
-                    st.rerun()
-            else:
-                if st.button("🎯 Get My Results", key="results_btn"):
-                    st.session_state.page = 'results'
-                    st.rerun()
-        else:
-            st.warning("Please provide at least 10 characters in your answer.")
 
+    with col3:
+        if current_q < len(QUESTIONS) - 1:
+            if st.button("Next →", key="next_btn", disabled=not is_valid):
+                st.session_state.current_question += 1
+                st.rerun()
+        else:
+            if st.button("Get My Results  →", key="results_btn", disabled=not is_valid):
+                st.session_state.page = 'results'
+                st.query_params['page'] = 'results'
+                st.rerun()
+
+
+# ─── RESULTS PAGE ────────────────────────────────────────────────────────────
 def show_results_page():
     """Display the results page"""
     if 'personality_result' not in st.session_state:
-        # Initialize model and make prediction
-        model = PersonalityModel()
-        
-        with st.spinner("<span style='color:#000;'>🔮 Analyzing your personality... This may take a moment.</span>"):
-            # Filter out empty answers
-            valid_answers = [answer for answer in st.session_state.answers if answer.strip()]
-            
+        # Check if we have results encoded in query params (page refresh)
+        qp = st.query_params
+        if qp.get('type') and qp.get('conf') and qp.get('dims'):
+            try:
+                saved_type = qp['type']
+                saved_conf = float(qp['conf'])
+                saved_dims = json.loads(qp['dims'])
+                saved_top = json.loads(qp.get('top', '[]'))
+                if saved_type in PERSONALITY_TYPES:
+                    st.session_state.personality_result = {
+                        'type': saved_type,
+                        'confidence': saved_conf,
+                        'top_matches': [(t, s) for t, s in saved_top],
+                        'dimension_scores': saved_dims,
+                    }
+            except (ValueError, json.JSONDecodeError, KeyError):
+                pass
+
+    if 'personality_result' not in st.session_state:
+        scorer = PersonalityScorer()
+
+        with st.spinner("Analyzing your personality..."):
+            answers = st.session_state.get('answers', [''] * 20)
+            valid_answers = [a for a in answers if a.strip()]
+
             if len(valid_answers) < 10:
-                st.error("Not enough answers provided. Please complete more questions.")
+                st.error(
+                    "Not enough answers provided. Please complete more questions.")
+                if st.button("← Back to Questions"):
+                    st.session_state.page = 'questionnaire'
+                    st.rerun()
                 return
-            
-            personality_type, confidence, top_matches = model.predict_personality(valid_answers)
-            
-            st.session_state.personality_result = {
-                'type': personality_type,
+
+            mbti_type, dimension_scores, confidence, top_matches = scorer.score_answers(
+                answers)
+
+            result_data = {
+                'type': mbti_type,
                 'confidence': confidence,
-                'top_matches': top_matches
+                'top_matches': top_matches,
+                'dimension_scores': dimension_scores,
             }
-    
+            st.session_state.personality_result = result_data
+
+            # Persist to query params so results survive refresh
+            st.query_params['page'] = 'results'
+            st.query_params['type'] = mbti_type
+            st.query_params['conf'] = str(round(confidence, 1))
+            st.query_params['dims'] = json.dumps(dimension_scores)
+            st.query_params['top'] = json.dumps(top_matches)
+
     result = st.session_state.personality_result
     personality_info = PERSONALITY_TYPES[result['type']]
-    
-    # Header
+
+    # ── Hero ──
     st.markdown("""
-    <div class="main-header">
-        <h1>🎉 Your Personality Results</h1>
-        <p>Based on your interview responses</p>
+    <div class="hero" style="padding:3rem 2rem 2.5rem;">
+        <span class="badge">Analysis Complete</span>
+        <h1 style="font-size:2.4rem;">Your Personality Results</h1>
+        <p class="subtitle" style="font-size:0.95rem;">Based on your interview responses</p>
     </div>
     """, unsafe_allow_html=True)
-    
-    # Main result card
+
+    # ── Main Result ──
     col1, col2 = st.columns([2, 1])
-    
+
     with col1:
-        st.markdown(f"""
-        <div class="result-card">
-            <h2 style="color: #667eea; margin-bottom: 1rem;">
-                {result['type']} - {personality_info['title']}
-            </h2>
-            <p style="font-size: 1.1rem; line-height: 1.6; color: #555; margin-bottom: 1.5rem;">
-                {personality_info['description']}
-            </p>
-            <div>
-                <h4 style="color: #667eea; margin-bottom: 1rem;">Key Traits:</h4>
-                <div style="margin-top: 1rem;">
-                    {''.join([f'<span class="trait-pill">{trait}</span>' for trait in personality_info['traits']])}
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        # Confidence score chart
-        confidence_fig = create_circular_progress(result['confidence'], 'Confidence Score')
-        st.plotly_chart(confidence_fig, use_container_width=True)
-    
-    # Detailed analysis
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown(f"""
-        <div class="result-card">
-        <h4 style="color:#667eea; margin-bottom:0.75rem;">💪 Strengths</h4>
-        <div class="pill-wrap">
-            {''.join([f'<span class="pill">{strength}</span>'
-                    for strength in personality_info['strengths']])}
-        </div>
-        </div>
-        """,
-            unsafe_allow_html=True
+        traits_html = ''.join(
+            [f'<span class="pill purple">{t}</span>' for t in personality_info['traits']]
         )
+        st.markdown(f"""
+        <div class="glass-card">
+            <div class="type-badge">{result['type']}</div>
+            <div class="type-title">{personality_info['title']}</div>
+            <p class="type-desc">{personality_info['description']}</p>
+            <div style="margin-top:1.2rem;">
+                <p style="color:var(--primary); font-weight:600; margin-bottom:0.5rem; font-size:0.9rem;">
+                    KEY TRAITS
+                </p>
+                <div class="pill-wrap">{traits_html}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    
     with col2:
-        st.markdown(f"""
-        <div class="result-card">
-            <h4 style="color: #667eea; ">💼 Career Fits</h4>
-            <div>
-                {''.join([f'<span class="trait-pill">{career}</span>' for career in personality_info['career_fits']])}
-            </div>
-            
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown(f"""
-        <div class="result-card">
-            <h4 style="color: #667eea;">⚠️ Areas to Watch</h4>
-            <div>
-                {''.join([f'<span class="trait-pill">{area}</span>' for area in personality_info['areas_to_watch']])}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Famous people and top matches
-    col1, col2 = st.columns(2)
-    
+        confidence_fig = create_circular_progress(
+            result['confidence'], 'Confidence Score')
+        st.plotly_chart(confidence_fig, use_container_width=True)
+
+    # ── Three Column Cards ──
+    col1, col2, col3 = st.columns(3)
+
     with col1:
+        strengths_html = ''.join(
+            [f'<span class="pill green">{s}</span>' for s in personality_info['strengths']]
+        )
         st.markdown(f"""
-        <div class="result-card">
-            <h4 style="color: #667eea; margin-bottom: 1rem;">🌟 Famous People</h4>
-            <div style="margin-top: 1rem;">
-                {''.join([f'<span class="trait-pill">{person}</span>' for person in personality_info['famous_people']])}
-            </div>
+        <div class="glass-card">
+            <h4>💪 Strengths</h4>
+            <div class="pill-wrap">{strengths_html}</div>
         </div>
         """, unsafe_allow_html=True)
-    
-    with col2:
-        results_html = f"""
-        <div style="
-            background: white;
-            border-radius: 18px;
-            padding: 2px 30px;
-            max-width: 100%;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-            margin-top:15px
-        ">
-        <div style="display: flex; align-items: center;margin-top:15.5px;">
-            <h4 style="color: #667eea;">🏆 Top Personality Matches</h4>
-        </div>
-        """
 
+    with col2:
+        careers_html = ''.join(
+            [f'<span class="pill blue">{c}</span>' for c in personality_info['career_fits']]
+        )
+        st.markdown(f"""
+        <div class="glass-card">
+            <h4>💼 Career Fits</h4>
+            <div class="pill-wrap">{careers_html}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col3:
+        areas_html = ''.join(
+            [f'<span class="pill amber">{a}</span>' for a in personality_info['areas_to_watch']]
+        )
+        st.markdown(f"""
+        <div class="glass-card">
+            <h4>⚠️ Areas to Watch</h4>
+            <div class="pill-wrap">{areas_html}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── Famous People & Top Matches ──
+    col1, col2 = st.columns(2)
+
+    with col1:
+        people_html = ''.join(
+            [f'<span class="pill pink">{p}</span>' for p in personality_info['famous_people']]
+        )
+        st.markdown(f"""
+        <div class="glass-card">
+            <h4>🌟 Famous People Like You</h4>
+            <div class="pill-wrap" style="margin-top:0.6rem;">{people_html}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        matches_html = ""
         for match_type, percentage in result['top_matches']:
-            results_html += f"""
-        <div style="display: flex; justify-content: space-between; margin: 8px 0;">
-            <span style="color: #9CA3AF; font-weight: 500; font-size: 1rem;">{match_type}</span>
-            <span style="color: #667eea; font-weight: 600; font-size: 1rem;">{percentage:.1f}%</span>
-        </div>
-        """
+            matches_html += f'<div class="match-row"><span class="match-type">{match_type}</span><span class="match-pct">{percentage:.1f}%</span></div>'
+        st.markdown(
+            f'<div class="glass-card"><h4>🏆 Top Personality Matches</h4>{matches_html}</div>', unsafe_allow_html=True)
 
-        results_html += "</div>"
+    # ── Personality Dimensions ──
+    dim_pairs = [
+        ('Extrovert vs Introvert', 'EI', 'E', 'I'),
+        ('Sensing vs Intuition', 'SN', 'S', 'N'),
+        ('Thinking vs Feeling', 'TF', 'T', 'F'),
+        ('Judging vs Perceiving', 'JP', 'J', 'P')
+    ]
 
-        st.markdown(results_html, unsafe_allow_html=True)
+    dim_scores = result.get('dimension_scores', {})
 
+    dim_html = ""
+    for label, key, first, second in dim_pairs:
+        ds = dim_scores.get(key, {})
+        pct = ds.get('pct', 50)
+        winner = ds.get('winner', first)
+        # pct is "% toward first letter"
+        score_display = round(pct) if winner == first else round(100 - pct)
+        bar_width = round(pct)
+        pref_text = f"{winner} — {first} {round(pct)}% / {second} {round(100-pct)}%"
 
-    
-    # Personality dimensions
-    card_html = """
-    <div style="
-    background: #fff;
-    border-radius: 18px;
-    padding: 32px 36px 24px 36px;
-    box-shadow: 0 6px 24px rgba(76,106,166,0.07);
-    max-width: 100%;
-    margin-top:15px;
-    font-family: Arial, sans-serif;
-    ">
-    <h4 style="color: #667eea; margin-bottom: 1.5rem;">📊 Your Personality Dimensions</h4>
-    """
-    
-    dimensions = {
-        'Extrovert vs Introvert': 'E' in result['type'],
-        'Sensing vs Intuition': 'S' in result['type'],
-        'Thinking vs Feeling': 'T' in result['type'],
-        'Judging vs Perceiving': 'J' in result['type']
-    }
-    
-    for dimension, preference in dimensions.items():
-        score = 70 if preference else 30
-        preference_text = dimension.split(' vs ')[0 if preference else 1]
-    
-        card_html += f"""
-    <div style="margin-bottom: 1.5rem;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-        <span style="font-weight: 500; color: #1f2937;">{dimension}</span>
-        <span style="color: #667eea; font-weight: 600;">{score}%</span>
-        </div>
-        <div style="background: #e9ecef; border-radius: 10px; height: 8px;">
-        <div style="background: linear-gradient(90deg, #667eea, #764ba2); height: 8px; border-radius: 10px; width: {score}%;"></div>
-        </div>
-        <p style="margin-top: 0.5rem; color: #6b7280; font-size: 0.9rem;">{preference_text}</p>
-    </div>
-        """
-    
-    card_html += "</div>"
-    
-    st.markdown(card_html, unsafe_allow_html=True)
-    
+        dim_html += (f'<div class="dim-row">'
+                     f'<div class="dim-header"><span class="dim-label">{label}</span>'
+                     f'<span class="dim-value">{winner} ({score_display}%)</span></div>'
+                     f'<div class="dim-track"><div class="dim-fill" style="width:{bar_width}%;"></div></div>'
+                     f'<div class="dim-pref">{pref_text}</div></div>')
 
-    
-    # Restart button
+    st.markdown(
+        f'<div class="glass-card" style="margin-top:0.5rem;"><h4>📊 Your Personality Dimensions</h4>{dim_html}</div>', unsafe_allow_html=True)
+
+    # ── Restart ──
     st.markdown("<br>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-        if st.button("🔄 Take Test Again", key="restart_btn", use_container_width=True):
-            # Clear session state
+    col_a, col_b, col_c = st.columns([1, 1, 1])
+    with col_b:
+        if st.button("Take Test Again  ↻", key="restart_btn", use_container_width=True):
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
+            st.query_params.clear()
             st.session_state.page = 'home'
             st.rerun()
 
+
+# ─── FOOTER ──────────────────────────────────────────────────────────────────
 def show_footer():
     """Display the footer"""
     st.markdown("""
-    <div class="footer">
-        <h4>🌟 Experience the Future of Personality Analysis</h4>
-        <p>• Privacy-Focused • Lightning-fast results</p>
-        <p style="margin-top: 1rem; font-size: 0.9rem;">© 2025 Sukumar Divi. All rights reserved</p>
+    <div class="app-footer">
+        <p>Built with <span class="heart">♥</span> using Streamlit & NLP</p>
+        <p>Privacy-Focused · Lightning-fast · Open Source</p>
+        <p style="margin-top:0.6rem;">© 2025 Sukumar Divi. All rights reserved.</p>
     </div>
     """, unsafe_allow_html=True)
 
+
+# ─── MAIN ────────────────────────────────────────────────────────────────────
 def main():
     """Main application function"""
-    # Initialize session state
+    # Restore page from query params on refresh
     if 'page' not in st.session_state:
-        st.session_state.page = 'home'
-    
-    # Navigation logic
+        qp = st.query_params
+        saved_page = qp.get('page', 'home')
+        if saved_page in ('home', 'questionnaire', 'results'):
+            st.session_state.page = saved_page
+        else:
+            st.session_state.page = 'home'
+
     if st.session_state.page == 'home':
         show_home_page()
     elif st.session_state.page == 'questionnaire':
         show_questionnaire_page()
     elif st.session_state.page == 'results':
         show_results_page()
-    
-    # Always show footer
+
     show_footer()
+
 
 if __name__ == "__main__":
     main()
